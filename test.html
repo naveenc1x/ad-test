@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ad Blocker Detection Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            padding: 2em;
+            background-color: #f9f9f9;
+            color: #333;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+        .container {
+            background: white;
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            text-align: center;
+            max-width: 500px;
+        }
+        h1 {
+            margin-top: 0;
+            color: #111;
+        }
+        #status {
+            font-size: 1.2em;
+            font-weight: bold;
+            padding: 0.8em;
+            border-radius: 8px;
+            margin-top: 1em;
+            transition: all 0.3s ease;
+        }
+        .detected {
+            color: #D32F2F;
+            background-color: #FFEBEE;
+            border: 1px solid #FFCDD2;
+        }
+        .not-detected {
+            color: #388E3C;
+            background-color: #E8F5E9;
+            border: 1px solid #C8E6C9;
+        }
+        .bait {
+            /* This is the bait element. It's designed to be caught by ad blockers. */
+            /* We make it invisible to the user so it doesn't affect the page layout. */
+            height: 1px !important;
+            width: 1px !important;
+            position: absolute !important;
+            left: -9999px !important;
+            top: -9999px !important;
+            pointer-events: none !important;
+            opacity: 0.001 !important;
+            visibility: hidden !important;
+            z-index: -1 !important;
+        }
+        #debug-info {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 8px;
+            background-color: #f0f0f0;
+            border: 1px solid #ddd;
+            text-align: left;
+            font-size: 0.9em;
+        }
+        #debug-info h2 {
+            margin-top: 0;
+            font-size: 1.1em;
+            border-bottom: 1px solid #ccc;
+            padding-bottom: 5px;
+        }
+        #debug-info p {
+            margin: 5px 0;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>Ad Blocker Detection</h1>
+        <p>This script runs multiple checks to determine if an ad blocker is active.</p>
+        <div id="status">Checking...</div>
+        
+        <!-- Debugging section to show the results of each check -->
+        <div id="debug-info">
+            <h2>Debug Info:</h2>
+            <p><strong>Bait Element Check:</strong> <span id="debug-bait">Pending...</span></p>
+            <p><strong>Honeypot Script Check:</strong> <span id="debug-honeypot">Pending...</span></p>
+        </div>
+    </div>
+
+    <!-- 
+      Bait Element:
+      This div has multiple class names that are very common in ad blocker filter lists.
+      Ad blockers like uBlock Origin will see these classes and apply a `display: none !important;`
+      style to this element, which is what our script will check for.
+    -->
+    <div id="ad-bait-element" class="ads ad ad-banner ad-container ad-wrapper text-ad text-ads banner_ad"></div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            const statusElement = document.getElementById('status');
+            const baitDebugElement = document.getElementById('debug-bait');
+            const honeypotDebugElement = document.getElementById('debug-honeypot');
+
+            // --- Detection Method 1: The Bait Element Check ---
+            function checkBaitElement() {
+                const bait = document.getElementById('ad-bait-element');
+                const baitStyle = window.getComputedStyle(bait);
+
+                console.log('Bait Element Height:', bait.offsetHeight);
+                console.log('Bait Element Display Style:', baitStyle.getPropertyValue('display'));
+
+                if (!bait || bait.offsetHeight === 0 || baitStyle.getPropertyValue('display') === 'none') {
+                    baitDebugElement.textContent = 'Failed (Element was hidden)';
+                    baitDebugElement.style.color = 'red';
+                    return true; // Detected
+                } else {
+                    baitDebugElement.textContent = 'Passed (Element is visible)';
+                    baitDebugElement.style.color = 'green';
+                    return false; // Not detected
+                }
+            }
+
+            // --- Detection Method 2: The Honeypot Script Check ---
+            async function checkHoneypotScript() {
+                const testAdUrl = 'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js';
+                try {
+                    await fetch(testAdUrl, { method: 'HEAD', mode: 'no-cors' });
+                    // If fetch succeeds, it means the request was NOT blocked.
+                    honeypotDebugElement.textContent = 'Passed (Request was not blocked)';
+                    honeypotDebugElement.style.color = 'green';
+                    console.log('Honeypot fetch succeeded.');
+                    return false; // Not detected
+                } catch (error) {
+                    // If fetch fails, it's likely due to a blocker (or a network error).
+                    honeypotDebugElement.textContent = 'Failed (Request was blocked or failed)';
+                    honeypotDebugElement.style.color = 'red';
+                    console.error('Honeypot fetch failed:', error);
+                    return true; // Detected
+                }
+            }
+
+            // --- Run Checks and Display Final Result ---
+            // We use a small delay to give the ad blocker time to act.
+            setTimeout(async () => {
+                const baitResult = checkBaitElement();
+                const honeypotResult = await checkHoneypotScript();
+
+                if (baitResult || honeypotResult) {
+                    statusElement.textContent = 'Ad Blocker Detected!';
+                    statusElement.className = 'detected';
+                } else {
+                    statusElement.textContent = 'No Ad Blocker Detected.';
+                    statusElement.className = 'not-detected';
+                }
+            }, 300);
+        });
+    </script>
+    <script>
+        function detectAdblock() {
+  const adblockTests = {
+    // https://github.com/uBlockOrigin/uAssets/blob/master/filters/filters-2022.txt
+    uBlockOrigin: {
+      url: 'https://incolumitas.com/data/yzfdmoan.js',
+      id: '837jlaBksSjd9jh',
+    },
+    // https://github.com/easylist/easylist/blob/master/easylist/easylist_general_block.txt
+    adblockPlus: {
+      url: 'https://incolumitas.com/data/utep_ad.js',
+      id: 'hfuBadsf3hFAk',
+    },
+  };
+
+  function canLoadRemoteScript(obj) {
+    return new Promise(function (resolve, reject) {
+      var script = document.createElement('script');
+
+      script.onload = function () {
+        if (document.getElementById(obj.id)) {
+          resolve(false);
+        } else {
+          resolve(true);
+        }
+      }
+
+      script.onerror = function () {
+        resolve(true);
+      }
+
+      script.src = obj.url;
+      document.body.appendChild(script);
+    });
+  }
+
+  return new Promise(function (resolve, reject) {
+    let promises = [
+      canLoadRemoteScript(adblockTests.uBlockOrigin),
+      canLoadRemoteScript(adblockTests.adblockPlus),
+    ];
+
+    Promise.all(promises).then((results) => {
+      resolve({
+        uBlockOrigin: results[0],
+        adblockPlus: results[1],
+        usingAdblock: (results[0] === true) || (results[1] === true),
+      });
+    }).catch((err) => {
+      reject(err);
+    });
+  });
+}
+
+        // Run the adblock detection
+        detectAdblock().then((result) => {
+          console.log('Adblock Detection Result:', result);
+          if (result.usingAdblock) {
+            document.getElementById('status').textContent = 'Ad Blocker Detected!';
+            document.getElementById('status').className = 'detected';
+          } else {
+            document.getElementById('status').textContent = 'No Ad Blocker Detected.';
+            document.getElementById('status').className = 'not-detected';
+          }
+        }).catch((error) => {
+          console.error('Error during adblock detection:', error);
+        }); 
+    </script>
+
+</body>
+</html>
